@@ -39,11 +39,12 @@ def show_about(root):
             lbl.pack(pady=15)
         except: pass
 
-    ttk.Label(about_win, text="RS-485 Benchmarking Tool", font=("Helvetica", 12, "bold")).pack()
+    ttk.Label(about_win, text="RS-485 Python Serial Throughput GUI Tester", font=("Helvetica", 12, "bold")).pack()
     ttk.Label(about_win, text=f"Version {version.VERSION_NUMBER}").pack()
     ttk.Label(about_win, text=f"Build: {version.BUILD_DATE} {version.BUILD_TIME}", font=("Consolas", 9)).pack(pady=5)
     
     msg = "Cross-Platform RS-485 Tester\nLinux: Ensure user is in 'dialout' group."
+    msg += "\r\nOriginal code created by Gemini -- https://gemini.google.com/share/167019f40cde"
     ttk.Label(about_win, text=msg, justify="center").pack(pady=10)
     ttk.Button(about_win, text="Close", command=about_win.destroy).pack(pady=15)
 
