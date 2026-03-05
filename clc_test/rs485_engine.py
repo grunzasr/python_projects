@@ -30,15 +30,60 @@ class RS485Benchmark:
                     crc >>= 1
         return crc.to_bytes(2, byteorder='little')
 
-    def run(self):
+    def send_modbus_preset(self, address=1, register=50000, value=100):
+        """Constructs and sends a Modbus Function 06 (Write Single Register) packet."""
         try:
             ser_send = serial.Serial(self.s_port, self.baud, timeout=0.1)
             ser_recv = serial.Serial(self.r_port, self.baud, timeout=0.1)
             
+            # Modbus PDU: [Addr][Func][RegHi][RegLo][ValHi][ValLo]
+            payload = bytearray([address, 0x06])
+            payload.extend(register.to_bytes(2, 'big'))
+            payload.extend(value.to_bytes(2, 'big'))
+            
+            # Append CRC-16 (Little Endian)
+            full_packet = payload + self.calculate_crc(payload)
+            self.log_callback(f"MODBUS TX: {full_packet.hex(' ').upper()}")
+            
+            start_time = time.perf_counter()
+            
+            # RS-485 Sequence
+            ser_send.dtr = True
+            time.sleep(self.sw_delay)
+            ser_send.write(full_packet)
+            ser_send.flush()
+            time.sleep(self.sw_delay)
+            ser_send.dtr = False
+            
+            # Listen for loopback/reception on receiver port
+            received = b""
+            timeout = time.time() + 1.5
+            while time.time() < timeout:
+                if ser_recv.in_waiting:
+                    received += ser_recv.read(ser_recv.in_waiting)
+                    if len(received) >= 8: break
+            
+            latency = (time.perf_counter() - start_time) * 1000
+            
+            if received[:8] == full_packet:
+                self.log_callback(f"SUCCESS: Packet verified in {latency:.2f}ms")
+            else:
+                self.log_callback(f"FAILED: Mismatch or Timeout. Got: {received.hex(' ').upper()}")
+
+            ser_send.close()
+            ser_recv.close()
+        except Exception as e:
+            self.log_callback(f"Modbus Error: {str(e)}")
+
+    def run(self):
+        """Throughput benchmark with variable packet sizes (1-80 bytes) + CRC."""
+        try:
+            ser_send = serial.Serial(self.s_port, self.baud, timeout=0.1)
+            ser_recv = serial.Serial(self.r_port, self.baud, timeout=0.1)
             ser_send.dtr = False
             ser_recv.dtr = False
             
-            data_pool = b"BLOCK_DATA_0123456789_RS485_TEST_" * (self.total_target_data // 20)
+            data_pool = b"RS485_DATA_PACKET_TEST_" * (self.total_target_data // 10)
             bytes_sent = 0
             self.bytes_verified = 0
             self.error_count = 0
@@ -51,8 +96,7 @@ class RS485Benchmark:
                         raw_packet = ser_recv.read(ser_recv.in_waiting)
                         if len(raw_packet) >= 3:
                             payload = raw_packet[:-2]
-                            received_crc = raw_packet[-2:]
-                            if received_crc == self.calculate_crc(payload):
+                            if raw_packet[-2:] == self.calculate_crc(payload):
                                 self.bytes_verified += len(payload)
                                 start_listen = time.time()
                             else:
@@ -61,28 +105,27 @@ class RS485Benchmark:
             recv_thread = threading.Thread(target=receiver_worker, daemon=True)
             recv_thread.start()
 
-            self.log_callback(f"Starting Transfer: {self.total_target_data} bytes")
+            self.log_callback(f"Throughput Test: {self.total_target_data} bytes...")
             start_time = time.time()
 
             while bytes_sent < self.total_target_data:
-                remaining = self.total_target_data - bytes_sent
-                packet_len = min(random.randint(1, 80), remaining)
-                payload = data_pool[bytes_sent : bytes_sent + packet_len]
-                
-                full_packet = payload + self.calculate_crc(payload)
+                chunk_len = min(random.randint(1, 80), self.total_target_data - bytes_sent)
+                payload = data_pool[bytes_sent : bytes_sent + chunk_len]
+                packet = payload + self.calculate_crc(payload)
+
                 ser_send.dtr = True
                 time.sleep(self.sw_delay)
-                ser_send.write(full_packet)
+                ser_send.write(packet)
                 ser_send.flush()
                 time.sleep(self.sw_delay)
                 ser_send.dtr = False
-                bytes_sent += packet_len
+                bytes_sent += chunk_len
                 
             recv_thread.join(timeout=2)
             duration = time.time() - start_time
-            self.log_callback(f"Duration: {duration:.2f}s | Errors: {self.error_count}")
+            self.log_callback(f"Done. Time: {duration:.2f}s | CRC Errors: {self.error_count}")
             if self.bytes_verified > 0:
-                self.log_callback(f"Effective Throughput: {(self.bytes_verified*8/duration)/1000:.2f} kbps")
+                self.log_callback(f"True Throughput: {(self.bytes_verified*8/duration)/1000:.2f} kbps")
 
             ser_send.close()
             ser_recv.close()
@@ -91,15 +134,14 @@ class RS485Benchmark:
 
 def get_available_ports():
     ports = list(serial.tools.list_ports.comports())
-    def get_port_num(p):
+    def get_num(p):
         match = re.search(r'\d+', p.device)
         return int(match.group()) if match else 0
+    ports.sort(key=get_num)
     
-    ports.sort(key=get_port_num)
-    
-    port_data = []
+    results = []
     for p in ports:
-        display_str = f"{p.device}: {p.description} [{p.hwid}]"
+        desc = f"{p.device}: {p.description} [{p.hwid}]"
         is_ftdi = "FTDI" in p.description.upper() or "0403" in p.hwid
-        port_data.append({"text": display_str, "is_ftdi": is_ftdi})
-    return port_data
+        results.append({"text": desc, "is_ftdi": is_ftdi})
+    return results
