@@ -1,108 +1,85 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 import ctypes
 import os
+import sys
 from PIL import Image, ImageTk
-
-# Local module imports
 import version
 from gui_app import ThroughputApp
 
 def set_app_id(v_num):
-    """
-    Tells Windows this is a unique application to ensure the taskbar
-    displays the custom icon and groups windows correctly by version.
-    """
-    try:
-        # AppUserModelID format: Company.Product.SubProduct.Version
-        myappid = f'industrial.rs485.tester.{v_num}'
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    except Exception:
-        # Fallback for non-Windows or environments where ctypes fails
-        pass
+    if sys.platform == "win32":
+        try:
+            myappid = f'industrial.rs485.tester.{v_num}'
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except: pass
 
 def show_about(root):
-    """Creates a custom, modal 'About' window with a large icon and build info."""
     about_win = tk.Toplevel(root)
     about_win.title(f"About - v{version.VERSION_NUMBER}")
-    about_win.geometry("450x380")
-    about_win.resizable(False, False)
-    
-    # Make the window modal
+    about_win.geometry("450x400")
     about_win.transient(root)
     about_win.grab_set()
 
-    # Center the about window relative to the main window
-    root_x = root.winfo_x()
-    root_y = root.winfo_y()
-    about_win.geometry(f"+{root_x + 100}+{root_y + 100}")
+    # Center logic
+    root_x, root_y = root.winfo_x(), root.winfo_y()
+    about_win.geometry(f"+{root_x + 50}+{root_y + 50}")
 
-    # --- Large Icon Section ---
-    icon_path = os.path.join(os.path.dirname(__file__), "CLC_Tester.ico")
+    # Large Icon (Cross-platform PIL)
+    icon_path = os.path.join(os.path.dirname(__file__), "CLC_Tester.png") # Prefer PNG for Linux
+    if not os.path.exists(icon_path):
+        icon_path = os.path.join(os.path.dirname(__file__), "CLC_Tester.ico")
+        
     if os.path.exists(icon_path):
         try:
-            img = Image.open(icon_path)
-            img = img.resize((128, 128), Image.Resampling.LANCZOS)
+            img = Image.open(icon_path).resize((128, 128), Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(img)
-            img_label = ttk.Label(about_win, image=photo)
-            img_label.image = photo  # Keep reference to prevent garbage collection
-            img_label.pack(pady=15)
-        except Exception:
-            ttk.Label(about_win, text="[RS-485 Tool Icon]").pack(pady=15)
+            lbl = ttk.Label(about_win, image=photo)
+            lbl.image = photo
+            lbl.pack(pady=15)
+        except: pass
 
-    # --- Version & Build Metadata ---
-    ttk.Label(about_win, text="RS-485 Benchmarking Utility", font=("Helvetica", 12, "bold")).pack()
-    ttk.Label(about_win, text=f"Version {version.VERSION_NUMBER}", font=("Helvetica", 10)).pack(pady=2)
+    ttk.Label(about_win, text="RS-485 Benchmarking Tool", font=("Helvetica", 12, "bold")).pack()
+    ttk.Label(about_win, text=f"Version {version.VERSION_NUMBER}").pack()
+    ttk.Label(about_win, text=f"Build: {version.BUILD_DATE} {version.BUILD_TIME}", font=("Consolas", 9)).pack(pady=5)
     
-    metadata_frame = ttk.Frame(about_win)
-    metadata_frame.pack(pady=5)
-    ttk.Label(metadata_frame, text=f"Build Date: {version.BUILD_DATE}", font=("Consolas", 9)).pack()
-    ttk.Label(metadata_frame, text=f"Build Time: {version.BUILD_TIME}", font=("Consolas", 9)).pack()
-
-    ttk.Label(about_win, text="\nIndustrial Protocol Testing\nModbus CRC-16 & DTR Driver Control", justify="center").pack()
-
-    ttk.Button(about_win, text="Close", command=about_win.destroy).pack(pady=20)
+    msg = "Cross-Platform RS-485 Tester\nLinux: Ensure user is in 'dialout' group."
+    ttk.Label(about_win, text=msg, justify="center").pack(pady=10)
+    ttk.Button(about_win, text="Close", command=about_win.destroy).pack(pady=15)
 
 def main():
     root = tk.Tk()
-    
-    # 1. Set Taskbar Title & App ID (including version)
-    app_title = f"RS-485 Benchmarking Tool (v{version.VERSION_NUMBER})"
-    root.title(app_title)
+    root.title(f"RS-485 Tool (v{version.VERSION_NUMBER})")
     set_app_id(version.VERSION_NUMBER)
 
-    # 2. Set Window Icons
-    icon_path = os.path.join(os.path.dirname(__file__), "CLC_Tester.ico")
-    if os.path.exists(icon_path):
-        root.iconbitmap(icon_path)
-
-    # 3. Responsive Scaling (80% of Monitor)
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    width = int(screen_width * 0.8)
-    height = int(screen_height * 0.8)
-    x = int((screen_width - width) / 2)
-    y = int((screen_height - height) / 2)
-    root.geometry(f"{width}x{height}+{x}+{y}")
-
-    # 4. Top-Level Menu Bar
-    menubar = tk.Menu(root)
+    # Cross-platform Icon
+    icon_ico = os.path.join(os.path.dirname(__file__), "CLC_Tester.ico")
+    icon_png = os.path.join(os.path.dirname(__file__), "CLC_Tester.png")
     
-    # File Menu
-    file_menu = tk.Menu(menubar, tearoff=0)
-    file_menu.add_command(label="Exit", command=root.quit)
-    menubar.add_cascade(label="File", menu=file_menu)
-    
-    # Help Menu
-    help_menu = tk.Menu(menubar, tearoff=0)
-    help_menu.add_command(label="About", command=lambda: show_about(root))
-    menubar.add_cascade(label="Help", menu=help_menu)
-    
-    root.config(menu=menubar)
+    try:
+        if sys.platform == "win32" and os.path.exists(icon_ico):
+            root.iconbitmap(icon_ico)
+        elif os.path.exists(icon_png):
+            img = tk.PhotoImage(file=icon_png)
+            root.iconphoto(True, img)
+    except: pass
 
-    # 5. Load Main Application UI
+    # 80% Screen Scaling
+    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+    w, h = int(sw*0.8), int(sh*0.8)
+    root.geometry(f"{w}x{h}+{int((sw-w)/2)}+{int((sh-h)/2)}")
+
+    # Menus
+    mb = tk.Menu(root)
+    fm = tk.Menu(mb, tearoff=0)
+    fm.add_command(label="Exit", command=root.quit)
+    mb.add_cascade(label="File", menu=fm)
+    hm = tk.Menu(mb, tearoff=0)
+    hm.add_command(label="About", command=lambda: show_about(root))
+    mb.add_cascade(label="Help", menu=hm)
+    root.config(menu=mb)
+
     app = ThroughputApp(root)
-    
     root.mainloop()
 
 if __name__ == "__main__":

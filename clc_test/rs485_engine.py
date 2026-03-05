@@ -31,23 +31,18 @@ class RS485Benchmark:
         return crc.to_bytes(2, byteorder='little')
 
     def send_modbus_preset(self, address=1, register=50000, value=100):
-        """Constructs and sends a Modbus Function 06 (Write Single Register) packet."""
         try:
             ser_send = serial.Serial(self.s_port, self.baud, timeout=0.1)
             ser_recv = serial.Serial(self.r_port, self.baud, timeout=0.1)
             
-            # Modbus PDU: [Addr][Func][RegHi][RegLo][ValHi][ValLo]
             payload = bytearray([address, 0x06])
             payload.extend(register.to_bytes(2, 'big'))
             payload.extend(value.to_bytes(2, 'big'))
             
-            # Append CRC-16 (Little Endian)
             full_packet = payload + self.calculate_crc(payload)
             self.log_callback(f"MODBUS TX: {full_packet.hex(' ').upper()}")
             
             start_time = time.perf_counter()
-            
-            # RS-485 Sequence
             ser_send.dtr = True
             time.sleep(self.sw_delay)
             ser_send.write(full_packet)
@@ -55,7 +50,6 @@ class RS485Benchmark:
             time.sleep(self.sw_delay)
             ser_send.dtr = False
             
-            # Listen for loopback/reception on receiver port
             received = b""
             timeout = time.time() + 1.5
             while time.time() < timeout:
@@ -64,26 +58,22 @@ class RS485Benchmark:
                     if len(received) >= 8: break
             
             latency = (time.perf_counter() - start_time) * 1000
-            
             if received[:8] == full_packet:
-                self.log_callback(f"SUCCESS: Packet verified in {latency:.2f}ms")
+                self.log_callback(f"SUCCESS: Received in {latency:.2f}ms")
             else:
-                self.log_callback(f"FAILED: Mismatch or Timeout. Got: {received.hex(' ').upper()}")
+                self.log_callback(f"FAILED: Mismatch. Got: {received.hex(' ').upper()}")
 
-            ser_send.close()
-            ser_recv.close()
+            ser_send.close() ; ser_recv.close()
         except Exception as e:
             self.log_callback(f"Modbus Error: {str(e)}")
 
     def run(self):
-        """Throughput benchmark with variable packet sizes (1-80 bytes) + CRC."""
         try:
             ser_send = serial.Serial(self.s_port, self.baud, timeout=0.1)
             ser_recv = serial.Serial(self.r_port, self.baud, timeout=0.1)
-            ser_send.dtr = False
-            ser_recv.dtr = False
+            ser_send.dtr = False ; ser_recv.dtr = False
             
-            data_pool = b"RS485_DATA_PACKET_TEST_" * (self.total_target_data // 10)
+            data_pool = b"RS485_LINUX_WIN_TEST_" * (self.total_target_data // 10)
             bytes_sent = 0
             self.bytes_verified = 0
             self.error_count = 0
@@ -105,9 +95,7 @@ class RS485Benchmark:
             recv_thread = threading.Thread(target=receiver_worker, daemon=True)
             recv_thread.start()
 
-            self.log_callback(f"Throughput Test: {self.total_target_data} bytes...")
             start_time = time.time()
-
             while bytes_sent < self.total_target_data:
                 chunk_len = min(random.randint(1, 80), self.total_target_data - bytes_sent)
                 payload = data_pool[bytes_sent : bytes_sent + chunk_len]
@@ -123,18 +111,16 @@ class RS485Benchmark:
                 
             recv_thread.join(timeout=2)
             duration = time.time() - start_time
-            self.log_callback(f"Done. Time: {duration:.2f}s | CRC Errors: {self.error_count}")
-            if self.bytes_verified > 0:
-                self.log_callback(f"True Throughput: {(self.bytes_verified*8/duration)/1000:.2f} kbps")
+            self.log_callback(f"Done. Speed: {(self.bytes_verified*8/duration)/1000:.2f} kbps")
 
-            ser_send.close()
-            ser_recv.close()
+            ser_send.close() ; ser_recv.close()
         except Exception as e:
             self.log_callback(f"Engine Error: {str(e)}")
 
 def get_available_ports():
     ports = list(serial.tools.list_ports.comports())
     def get_num(p):
+        # Handles COM1, /dev/ttyUSB0, /dev/ttyS10 etc.
         match = re.search(r'\d+', p.device)
         return int(match.group()) if match else 0
     ports.sort(key=get_num)
@@ -142,6 +128,7 @@ def get_available_ports():
     results = []
     for p in ports:
         desc = f"{p.device}: {p.description} [{p.hwid}]"
-        is_ftdi = "FTDI" in p.description.upper() or "0403" in p.hwid
+        is_ftdi = any(x in p.description.upper() or x in p.hwid.upper() 
+                     for x in ["FTDI", "0403", "FUTURE TECHNOLOGY"])
         results.append({"text": desc, "is_ftdi": is_ftdi})
     return results
