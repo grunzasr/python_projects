@@ -31,7 +31,7 @@ class ThroughputApp(ttk.Frame):
         # Baud & Payload
         ttk.Label(self, text="Baud Rate:").grid(row=2, column=0, sticky="w")
         self.baud_rate = ttk.Combobox(self, values=[9600, 38400, 115200, 921600])
-        self.baud_rate.set(115200)
+        self.baud_rate.set(9600)
         self.baud_rate.grid(row=2, column=1, sticky="ew", pady=2)
 
         ttk.Label(self, text="Payload (bytes):").grid(row=3, column=0, sticky="w")
@@ -55,14 +55,14 @@ class ThroughputApp(ttk.Frame):
         self.level_send_btn = ttk.Button(self.loop_group, text="Send Level", command=self.on_send_level)
         self.level_send_btn.pack(side=tk.LEFT, padx=5, pady=5)
         # 1. Create a variable to hold the slider's value (0.0 to 100.0)
-        self.level_val = tk.DoubleVar(value=12.0) # Default to 12mA (mid-point)
+        self.level_val = tk.IntVar(value=400)
 
         # 2. Define the Scale (Slider)
         # standard 4-20 mA range logic:
         self.level_slider = ttk.Scale(
             self.loop_group, #loop_btn_frame, 
-            from_=4.0, 
-            to=20.0, 
+            from_=0, 
+            to=4095, 
             variable=self.level_val, 
             orient=tk.HORIZONTAL,
             length=150,
@@ -73,8 +73,10 @@ class ThroughputApp(ttk.Frame):
         self.level_slider.pack(side=tk.LEFT, padx=10)
 
         # 4. (Optional) Add a label to show the exact number
-        self.level_label = ttk.Label(self.loop_group, text="12.00mA")
-        self.level_label.pack(side=tk.LEFT)        
+        self.level_label = ttk.Label(self.loop_group, text="400")
+        self.level_label.pack(side=tk.LEFT)
+        self.level_units_label = ttk.Label(self.loop_group, text=" ADC counts")
+        self.level_units_label.pack(side=tk.LEFT)        
         
         # Console
         con_f = ttk.Frame(self)
@@ -132,14 +134,19 @@ class ThroughputApp(ttk.Frame):
         try:
             s, r = self.get_clean_ports()
             settings.save_settings(self.sender_var.get(), self.receiver_var.get(), self.baud_rate.get(), self.payload_entry.get())
-            #tester = RS485Benchmark(s, r, int(self.baud_rate.get()), int(self.payload_entry.get()), 0.01, self.log)
+            tester = RS485Benchmark(s, r, int(self.baud_rate.get()), 1, 0.01, self.log)
+            
             self.level_send_btn.config(state='disabled')
-            #threading.Thread(target=lambda: [tester.run(), self.master.after(0, lambda: self.start_btn.config(state='normal'))], daemon=True).start()
+            
+            threading.Thread(target=tester.send_modbus_loop, address=1, register=50000, value=self.level_val, daemon=True).start()
+            
+            
         except Exception as e: messagebox.showerror("Error", str(e))        
 
     def on_modbus_cmd(self):
         try:
             s, r = self.get_clean_ports()
+            settings.save_settings(self.sender_var.get(), self.receiver_var.get(), self.baud_rate.get(), self.payload_entry.get())
             tester = RS485Benchmark(s, r, int(self.baud_rate.get()), 1, 0.01, self.log)
             threading.Thread(target=tester.send_modbus_preset, daemon=True).start()
         except Exception as e: messagebox.showerror("Error", str(e))
@@ -150,9 +157,10 @@ class ThroughputApp(ttk.Frame):
             self.sender_var.set(d.get('sender_port', ''))
             self.receiver_var.set(d.get('receiver_port', ''))
             self.baud_rate.set(d.get('baud_rate', '115200'))
-            self.payload_entry.delete(0, tk.END); self.payload_entry.insert(0, d.get('payload_kb', '10'))
+            self.payload_entry.delete(0, tk.END); self.payload_entry.insert(0, d.get('payload', '10'))
             
     def update_level_label(self, val):
-        # val is passed as a string by the scale, so we convert to float
+        # val is passed as a string by the scale, so we convert to integer
         float_val = float(val)
-        self.level_label.config(text=f"{float_val:.2f} mA")
+        int_val = int(float_val)
+        self.level_label.config(text=f"{int_val}")

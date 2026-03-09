@@ -9,7 +9,7 @@ def save_settings(s_port, r_port, baud, payload):
         'sender_port': s_port,
         'receiver_port': r_port,
         'baud_rate': baud,
-        'payload_kb': payload
+        'payload': payload
     }
     with open(CONFIG_FILE, 'w') as configfile:
         config.write(configfile)
