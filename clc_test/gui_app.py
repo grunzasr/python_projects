@@ -15,7 +15,7 @@ class ThroughputApp(ttk.Frame):
 
     def setup_ui(self):
         self.columnconfigure(1, weight=1)
-        self.rowconfigure(6, weight=9)
+        self.rowconfigure(7, weight=9)
 
         # Port Selection
         ttk.Label(self, text="Sender Port:").grid(row=0, column=0, sticky="w")
@@ -47,10 +47,44 @@ class ThroughputApp(ttk.Frame):
         self.modbus_btn = ttk.Button(btn_frame, text="Modbus CMD", command=self.on_modbus_cmd)
         self.modbus_btn.pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Clear Log", command=self.clear_log).pack(side=tk.LEFT, padx=5)
+        
+        # 4-20 mA Settings
+        #loop_btn_frame = ttk.Frame(self)
+        #loop_btn_frame = ttk.Frame(self, borderwidth=2, relief="groove")
+        #loop_btn_frame.grid(row=6, column=0, columnspan=10, sticky="ew", padx=5, pady=5)
+        #self.level_send_btn = ttk.Button(loop_btn_frame, text="Send Level", command=self.on_send_level)
+        #self.level_send_btn.pack(side=tk.LEFT, padx=5)
+        self.loop_group = ttk.LabelFrame(self, text=" 4-20 mA Loop Control ")
+        self.loop_group.grid(row=6, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
 
+        self.level_send_btn = ttk.Button(self.loop_group, text="Send Level", command=self.on_send_level)
+        self.level_send_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        # 1. Create a variable to hold the slider's value (0.0 to 100.0)
+        self.level_val = tk.DoubleVar(value=12.0) # Default to 12mA (mid-point)
+
+        # 2. Define the Scale (Slider)
+        # standard 4-20 mA range logic:
+        self.level_slider = ttk.Scale(
+            self.loop_group, #loop_btn_frame, 
+            from_=4.0, 
+            to=20.0, 
+            variable=self.level_val, 
+            orient=tk.HORIZONTAL,
+            length=150
+            )
+
+        # 3. Pack it to the right of the button
+        self.level_slider.pack(side=tk.LEFT, padx=10)
+
+        # 4. (Optional) Add a label to show the exact number
+        self.level_label = ttk.Label(self.loop_group, textvariable=self.level_val)
+        self.level_label.pack(side=tk.LEFT)
+
+        
+        
         # Console
         con_f = ttk.Frame(self)
-        con_f.grid(row=6, column=0, columnspan=3, sticky="nsew")
+        con_f.grid(row=7, column=0, columnspan=3, sticky="nsew")
         con_f.columnconfigure(0, weight=1); con_f.rowconfigure(0, weight=1)
         self.console = tk.Text(con_f, state='disabled', font=("Consolas", 10), wrap="none")
         self.console.grid(row=0, column=0, sticky="nsew")
@@ -99,6 +133,15 @@ class ThroughputApp(ttk.Frame):
             self.start_btn.config(state='disabled')
             threading.Thread(target=lambda: [tester.run(), self.master.after(0, lambda: self.start_btn.config(state='normal'))], daemon=True).start()
         except Exception as e: messagebox.showerror("Error", str(e))
+        
+    def on_send_level(self):
+        try:
+            s, r = self.get_clean_ports()
+            settings.save_settings(self.sender_var.get(), self.receiver_var.get(), self.baud_rate.get(), self.payload_entry.get())
+            #tester = RS485Benchmark(s, r, int(self.baud_rate.get()), int(self.payload_entry.get()), 0.01, self.log)
+            self.level_send_btn.config(state='disabled')
+            #threading.Thread(target=lambda: [tester.run(), self.master.after(0, lambda: self.start_btn.config(state='normal'))], daemon=True).start()
+        except Exception as e: messagebox.showerror("Error", str(e))        
 
     def on_modbus_cmd(self):
         try:
