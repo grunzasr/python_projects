@@ -49,11 +49,6 @@ class ThroughputApp(ttk.Frame):
         ttk.Button(btn_frame, text="Clear Log", command=self.clear_log).pack(side=tk.LEFT, padx=5)
         
         # 4-20 mA Settings
-        #loop_btn_frame = ttk.Frame(self)
-        #loop_btn_frame = ttk.Frame(self, borderwidth=2, relief="groove")
-        #loop_btn_frame.grid(row=6, column=0, columnspan=10, sticky="ew", padx=5, pady=5)
-        #self.level_send_btn = ttk.Button(loop_btn_frame, text="Send Level", command=self.on_send_level)
-        #self.level_send_btn.pack(side=tk.LEFT, padx=5)
         self.loop_group = ttk.LabelFrame(self, text=" 4-20 mA Loop Control ")
         self.loop_group.grid(row=6, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
 
@@ -70,17 +65,16 @@ class ThroughputApp(ttk.Frame):
             to=20.0, 
             variable=self.level_val, 
             orient=tk.HORIZONTAL,
-            length=150
+            length=150,
+            command=self.update_level_label
             )
 
         # 3. Pack it to the right of the button
         self.level_slider.pack(side=tk.LEFT, padx=10)
 
         # 4. (Optional) Add a label to show the exact number
-        self.level_label = ttk.Label(self.loop_group, textvariable=self.level_val)
-        self.level_label.pack(side=tk.LEFT)
-
-        
+        self.level_label = ttk.Label(self.loop_group, text="12.00mA")
+        self.level_label.pack(side=tk.LEFT)        
         
         # Console
         con_f = ttk.Frame(self)
@@ -157,3 +151,8 @@ class ThroughputApp(ttk.Frame):
             self.receiver_var.set(d.get('receiver_port', ''))
             self.baud_rate.set(d.get('baud_rate', '115200'))
             self.payload_entry.delete(0, tk.END); self.payload_entry.insert(0, d.get('payload_kb', '10'))
+            
+    def update_level_label(self, val):
+        # val is passed as a string by the scale, so we convert to float
+        float_val = float(val)
+        self.level_label.config(text=f"{float_val:.2f} mA")
