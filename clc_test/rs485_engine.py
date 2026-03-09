@@ -6,11 +6,11 @@ import random
 import re
 
 class RS485Benchmark:
-    def __init__(self, s_port, r_port, baud, kb_size, sw_delay, log_callback):
+    def __init__(self, s_port, r_port, baud, size, sw_delay, log_callback):
         self.s_port = s_port
         self.r_port = r_port
         self.baud = baud
-        self.total_target_data = kb_size * 1024
+        self.total_target_data = size
         self.sw_delay = sw_delay
         self.log_callback = log_callback
         self.error_count = 0
@@ -111,7 +111,8 @@ class RS485Benchmark:
                 
             recv_thread.join(timeout=2)
             duration = time.time() - start_time
-            self.log_callback(f"Done. Speed: {(self.bytes_verified*8/duration)/1000:.2f} kbps")
+            self.log_callback(f"Done. Bytes received: {(self.bytes_verified):.2f} bytes")
+            self.log_callback(f"Done. Speed: {(self.bytes_verified*8/duration):.2f} bps")
 
             ser_send.close() ; ser_recv.close()
         except Exception as e:

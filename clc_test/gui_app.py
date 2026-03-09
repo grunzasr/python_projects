@@ -34,7 +34,7 @@ class ThroughputApp(ttk.Frame):
         self.baud_rate.set(115200)
         self.baud_rate.grid(row=2, column=1, sticky="ew", pady=2)
 
-        ttk.Label(self, text="Payload (KB):").grid(row=3, column=0, sticky="w")
+        ttk.Label(self, text="Payload (bytes):").grid(row=3, column=0, sticky="w")
         self.payload_entry = ttk.Entry(self)
         self.payload_entry.insert(0, "10")
         self.payload_entry.grid(row=3, column=1, sticky="ew", pady=2)
