@@ -49,9 +49,9 @@ class ThroughputApp(ttk.Frame):
         ttk.Button(btn_frame, text="Clear Log", command=self.clear_log).pack(side=tk.LEFT, padx=5)
         
         # 4-20 mA Settings - Level
-        self.level_group = ttk.LabelFrame(self, height=20, width=200, text=" 4-20 mA Loop Control ")
+        self.level_group = ttk.LabelFrame(self, height=20, width=200, text=" 4-20 mA Level Control ")
         self.level_group.grid_propagate(False)
-        self.level_group.grid(row=6, column=0, columnspan=1, padx=10, pady=10, sticky="ew")
+        self.level_group.grid(row=6, column=0, columnspan=2, padx=10, pady=10, sticky="w")
 
         self.level_send_btn = ttk.Button(self.level_group, text="Send Level", command=self.on_send_level)
         self.level_send_btn.pack(side=tk.LEFT, padx=5, pady=5)
@@ -74,16 +74,16 @@ class ThroughputApp(ttk.Frame):
         self.level_slider.pack(side=tk.LEFT, padx=10)
 
         # 4. (Optional) Add a label to show the exact number
-        self.level_label = ttk.Label(self.level_group, text="400")
+        self.level_label = ttk.Label(self.level_group, text="0400")
         self.level_label.pack(side=tk.LEFT)
-        self.level_units_label = ttk.Label(self.level_group, text=" ADC counts")
+        self.level_units_label = ttk.Label(self.level_group, text=" DAC counts")
         self.level_units_label.pack(side=tk.LEFT)
         
         # 4-20 mA Settings - Aux
         self.aux_group = ttk.LabelFrame(self, text=" 4-20 mA Aux Control ", width=250)
-        self.aux_group.grid(row=6, column=1, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.aux_group.grid(row=6, column=2, columnspan=2, padx=10, pady=10, sticky="e")
 
-        self.aux_send_btn = ttk.Button(self.aux_group, text="Send Aux", command=self.on_send_level)
+        self.aux_send_btn = ttk.Button(self.aux_group, text="Send Aux", command=self.on_send_aux)
         self.aux_send_btn.pack(side=tk.LEFT, padx=5, pady=5)
         # 1. Create a variable to hold the slider's value (0.0 to 100.0)
         self.aux_val = tk.IntVar(value=400)
@@ -104,14 +104,14 @@ class ThroughputApp(ttk.Frame):
         self.aux_slider.pack(side=tk.LEFT, padx=10)
 
         # 4. (Optional) Add a label to show the exact number
-        self.aux_label = ttk.Label(self.aux_group, text="400")
+        self.aux_label = ttk.Label(self.aux_group, text="0400")
         self.aux_label.pack(side=tk.LEFT)
-        self.aux_units_label = ttk.Label(self.aux_group, text=" ADC counts")
+        self.aux_units_label = ttk.Label(self.aux_group, text=" DAC counts")
         self.aux_units_label.pack(side=tk.LEFT)        
         
         # Console
         con_f = ttk.Frame(self)
-        con_f.grid(row=7, column=0, columnspan=3, sticky="nsew")
+        con_f.grid(row=7, column=0, columnspan=4, sticky="nsew")
         con_f.columnconfigure(0, weight=1); con_f.rowconfigure(0, weight=1)
         self.console = tk.Text(con_f, state='disabled', font=("Consolas", 10), wrap="none")
         self.console.grid(row=0, column=0, sticky="nsew")
@@ -186,7 +186,7 @@ class ThroughputApp(ttk.Frame):
             self.level_send_btn.config(state='disabled')
             
             threading.Thread(
-                target=lambda: tester.send_modbus_loop(address=1, register=50001, value=self.level_val),
+                target=lambda: tester.send_modbus_loop(address=1, register=50001, value=self.aux_val),
                 daemon=True
                 ).start()
             
@@ -212,13 +212,13 @@ class ThroughputApp(ttk.Frame):
         # val is passed as a string by the scale, so we convert to integer
         float_val = float(val)
         int_val = int(float_val)
-        self.level_label.config(text=f"{int_val}")
+        self.level_label.config(text=f"{int_val:04d}")
         
     def update_aux_label(self, val):
         # val is passed as a string by the scale, so we convert to integer
         float_val = float(val)
         int_val = int(float_val)
-        self.aux_label.config(text=f"{int_val}")
+        self.aux_label.config(text=f"{int_val:04d}")
         
         
 # end of file gui_app.py                
