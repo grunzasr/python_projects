@@ -48,11 +48,11 @@ class ThroughputApp(ttk.Frame):
         self.modbus_btn.pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Clear Log", command=self.clear_log).pack(side=tk.LEFT, padx=5)
         
-        # 4-20 mA Settings
-        self.loop_group = ttk.LabelFrame(self, text=" 4-20 mA Loop Control ")
-        self.loop_group.grid(row=6, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        # 4-20 mA Settings - Level
+        self.level_group = ttk.LabelFrame(self, text=" 4-20 mA Loop Control ")
+        self.level_group.grid(row=6, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
 
-        self.level_send_btn = ttk.Button(self.loop_group, text="Send Level", command=self.on_send_level)
+        self.level_send_btn = ttk.Button(self.level_group, text="Send Level", command=self.on_send_level)
         self.level_send_btn.pack(side=tk.LEFT, padx=5, pady=5)
         # 1. Create a variable to hold the slider's value (0.0 to 100.0)
         self.level_val = tk.IntVar(value=400)
@@ -60,7 +60,7 @@ class ThroughputApp(ttk.Frame):
         # 2. Define the Scale (Slider)
         # standard 4-20 mA range logic:
         self.level_slider = ttk.Scale(
-            self.loop_group, #loop_btn_frame, 
+            self.level_group, #loop_btn_frame, 
             from_=0, 
             to=4095, 
             variable=self.level_val, 
@@ -73,10 +73,40 @@ class ThroughputApp(ttk.Frame):
         self.level_slider.pack(side=tk.LEFT, padx=10)
 
         # 4. (Optional) Add a label to show the exact number
-        self.level_label = ttk.Label(self.loop_group, text="400")
+        self.level_label = ttk.Label(self.level_group, text="400")
         self.level_label.pack(side=tk.LEFT)
-        self.level_units_label = ttk.Label(self.loop_group, text=" ADC counts")
-        self.level_units_label.pack(side=tk.LEFT)        
+        self.level_units_label = ttk.Label(self.level_group, text=" ADC counts")
+        self.level_units_label.pack(side=tk.LEFT)
+        
+        # 4-20 mA Settings - Aux
+        self.aux_group = ttk.LabelFrame(self, text=" 4-20 mA Aux Control ")
+        self.aux_group.grid(row=6, column=1, columnspan=3, padx=10, pady=10, sticky="ew")
+
+        self.aux_send_btn = ttk.Button(self.aux_group, text="Send Aux", command=self.on_send_level)
+        self.aux_send_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        # 1. Create a variable to hold the slider's value (0.0 to 100.0)
+        self.aux_val = tk.IntVar(value=400)
+
+        # 2. Define the Scale (Slider)
+        # standard 4-20 mA range logic:
+        self.aux_slider = ttk.Scale(
+            self.aux_group, 
+            from_=0, 
+            to=4095, 
+            variable=self.aux_val, 
+            orient=tk.HORIZONTAL,
+            length=150,
+            command=self.update_level_label
+            )
+
+        # 3. Pack it to the right of the button
+        self.aux_slider.pack(side=tk.LEFT, padx=10)
+
+        # 4. (Optional) Add a label to show the exact number
+        self.aux_label = ttk.Label(self.aux_group, text="400")
+        self.aux_label.pack(side=tk.LEFT)
+        self.aux_units_label = ttk.Label(self.aux_group, text=" ADC counts")
+        self.aux_units_label.pack(side=tk.LEFT)        
         
         # Console
         con_f = ttk.Frame(self)
