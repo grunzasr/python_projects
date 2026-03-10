@@ -127,7 +127,8 @@ class ThroughputApp(ttk.Frame):
             settings.save_settings(self.sender_var.get(), self.receiver_var.get(), self.baud_rate.get(), self.payload_entry.get())
             tester = RS485Benchmark(s, r, int(self.baud_rate.get()), int(self.payload_entry.get()), 0.01, self.log)
             self.start_btn.config(state='disabled')
-            threading.Thread(target=lambda: [tester.run(), self.master.after(0, lambda: self.start_btn.config(state='normal'))], daemon=True).start()
+            threading.Thread(
+                target=lambda: [tester.run(), self.master.after(0, lambda: self.start_btn.config(state='normal'))], daemon=True).start()
         except Exception as e: messagebox.showerror("Error", str(e))
         
     def on_send_level(self):
@@ -138,11 +139,28 @@ class ThroughputApp(ttk.Frame):
             
             self.level_send_btn.config(state='disabled')
             
-            threading.Thread(target=tester.send_modbus_loop, address=1, register=50000, value=self.level_val, daemon=True).start()
-            
+            threading.Thread(
+                target=lambda: [tester.send_modbus_loop(address=1, register=50000, value=self.level_val), self.master.after(0, lambda: self.level_send_btn.config(state='normal'))],
+                daemon=True
+                ).start()
             
         except Exception as e: messagebox.showerror("Error", str(e))        
 
+    def on_send_aux(self):
+        try:
+            s, r = self.get_clean_ports()
+            settings.save_settings(self.sender_var.get(), self.receiver_var.get(), self.baud_rate.get(), self.payload_entry.get())
+            tester = RS485Benchmark(s, r, int(self.baud_rate.get()), 1, 0.01, self.log)
+            
+            self.level_send_btn.config(state='disabled')
+            
+            threading.Thread(
+                target=lambda: tester.send_modbus_loop(address=1, register=50001, value=self.level_val),
+                daemon=True
+                ).start()
+            
+        except Exception as e: messagebox.showerror("Error", str(e))
+        
     def on_modbus_cmd(self):
         try:
             s, r = self.get_clean_ports()

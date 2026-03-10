@@ -67,13 +67,15 @@ class RS485Benchmark:
         except Exception as e:
             self.log_callback(f"Modbus Error: {str(e)}")
             
-    def send_modbus_loop(self, address, register, value):
+    def send_modbus_loop(self, address, register, value ):
         try:
             ser_send = serial.Serial(self.s_port, self.baud, timeout=0.1)
             
+            valueInt = value.get()
+            
             payload = bytearray([address, 0x06])
             payload.extend(register.to_bytes(2, 'big'))
-            payload.extend(value.to_bytes(2, 'big'))
+            payload.extend(valueInt.to_bytes(2, 'big'))
             
             full_packet = payload + self.calculate_crc(payload)
             self.log_callback(f"MODBUS TX: {full_packet.hex(' ').upper()}")
@@ -86,9 +88,9 @@ class RS485Benchmark:
             time.sleep(self.sw_delay)
             ser_send.dtr = False
 
-            ser_send.close() ; ser_recv.close()
+            ser_send.close()
         except Exception as e:
-            self.log_callback(f"Modbus Error: {str(e)}")
+            self.log_callback(f"send_modbus_loop() error: {str(e)}")
 
     def run(self):
         try:
