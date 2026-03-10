@@ -183,10 +183,10 @@ class ThroughputApp(ttk.Frame):
             settings.save_settings(self.sender_var.get(), self.receiver_var.get(), self.baud_rate.get(), self.payload_entry.get())
             tester = RS485Benchmark(s, r, int(self.baud_rate.get()), 1, 0.01, self.log)
             
-            self.level_send_btn.config(state='disabled')
+            self.aux_send_btn.config(state='disabled')
             
             threading.Thread(
-                target=lambda: tester.send_modbus_loop(address=1, register=50001, value=self.aux_val),
+                target=lambda: [tester.send_modbus_loop(address=1, register=50001, value=self.aux_val), self.master.after(0, lambda: self.aux_send_btn.config(state='normal'))],
                 daemon=True
                 ).start()
             

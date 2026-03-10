@@ -6,6 +6,8 @@ import sys
 from PIL import Image, ImageTk
 import version
 from gui_app import ThroughputApp
+import sys
+
 
 def set_app_id(v_num):
     if sys.platform == "win32":
@@ -64,6 +66,22 @@ def main():
             img = tk.PhotoImage(file=icon_png)
             root.iconphoto(True, img)
     except: pass
+    
+    
+    # Splash screen support
+    if getattr(sys, 'frozen', False ):
+        try:
+            import pyi_splash
+        except ImportError:
+            # Handle cases wehre the import might still fail
+            py_splash = None
+    else:
+        class DummySplash:
+            def update_text(self, text): pass
+            def close(self): pass
+            def is_alive(self): return False
+        pyi_splash = DummySplash()
+                
 
     # 80% Screen Scaling
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
@@ -79,6 +97,10 @@ def main():
     hm.add_command(label="About", command=lambda: show_about(root))
     mb.add_cascade(label="Help", menu=hm)
     root.config(menu=mb)
+
+    root.lift()
+    
+    pyi_splash.close()
 
     app = ThroughputApp(root)
     root.mainloop()
