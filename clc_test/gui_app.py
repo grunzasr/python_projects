@@ -49,8 +49,9 @@ class ThroughputApp(ttk.Frame):
         ttk.Button(btn_frame, text="Clear Log", command=self.clear_log).pack(side=tk.LEFT, padx=5)
         
         # 4-20 mA Settings - Level
-        self.level_group = ttk.LabelFrame(self, text=" 4-20 mA Loop Control ")
-        self.level_group.grid(row=6, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.level_group = ttk.LabelFrame(self, height=20, width=200, text=" 4-20 mA Loop Control ")
+        self.level_group.grid_propagate(False)
+        self.level_group.grid(row=6, column=0, columnspan=1, padx=10, pady=10, sticky="ew")
 
         self.level_send_btn = ttk.Button(self.level_group, text="Send Level", command=self.on_send_level)
         self.level_send_btn.pack(side=tk.LEFT, padx=5, pady=5)
@@ -79,7 +80,7 @@ class ThroughputApp(ttk.Frame):
         self.level_units_label.pack(side=tk.LEFT)
         
         # 4-20 mA Settings - Aux
-        self.aux_group = ttk.LabelFrame(self, text=" 4-20 mA Aux Control ")
+        self.aux_group = ttk.LabelFrame(self, text=" 4-20 mA Aux Control ", width=250)
         self.aux_group.grid(row=6, column=1, columnspan=3, padx=10, pady=10, sticky="ew")
 
         self.aux_send_btn = ttk.Button(self.aux_group, text="Send Aux", command=self.on_send_level)
@@ -96,7 +97,7 @@ class ThroughputApp(ttk.Frame):
             variable=self.aux_val, 
             orient=tk.HORIZONTAL,
             length=150,
-            command=self.update_level_label
+            command=self.update_aux_label
             )
 
         # 3. Pack it to the right of the button
@@ -212,3 +213,12 @@ class ThroughputApp(ttk.Frame):
         float_val = float(val)
         int_val = int(float_val)
         self.level_label.config(text=f"{int_val}")
+        
+    def update_aux_label(self, val):
+        # val is passed as a string by the scale, so we convert to integer
+        float_val = float(val)
+        int_val = int(float_val)
+        self.aux_label.config(text=f"{int_val}")
+        
+        
+# end of file gui_app.py                
