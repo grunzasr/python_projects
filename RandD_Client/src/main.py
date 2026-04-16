@@ -8,6 +8,8 @@ ADC_CHAR_UUID = "0000fe41-8e22-4541-9d4c-21edae82ed19" # 32 bytes
 LED_CHAR_UUID = "0000fe42-8e22-4541-9d4c-21edae82ed19" # 5 bytes
 PB_UUID       = "0000fe43-8e22-4541-9d4c-21edae82ed19"
 
+MAX_MTU = 80
+
 def adc_notification_handler(sender, data):
     """
     Unpacks 32 bytes into 16 uint16_t ADC values.
@@ -27,6 +29,20 @@ async def main():
 
     async with BleakClient(device) as client:
         print(f"Connected to {device.address}")
+        
+        print(f"initial MTU: {client.mtu_size}")
+        
+        try:
+            if hasattr(client, "request_mtu"):
+                await client.request_mtu(MAX_MTU)
+                print(f"Requested MTU change to {MAX_MTU}")
+            else:
+                print("Manual MTU request may not be supported on this platform")
+        except Exception as e:
+            print(f"Failed to request MTU: {e}")
+            
+        print(f"MTU size is now {client.mtu_size}")
+        
 
         # 1. Read the 34 LED states (5 bytes)
         led_data = await client.read_gatt_char(LED_CHAR_UUID)
