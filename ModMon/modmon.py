@@ -6,40 +6,49 @@ import serial
 import serial.tools.list_ports
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QComboBox, QPushButton, QTextEdit, 
-                             QFileDialog, QMessageBox, QLabel)
-from PySide6.QtGui import QAction, QColor, QStandardItemModel, QStandardItem, QIcon
+                             QFileDialog, QMessageBox, QLabel, QMenu, QInputDialog,
+                             QGroupBox)
+from PySide6.QtGui import QAction, QColor, QStandardItemModel, QStandardItem, QIcon, QActionGroup
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.8.0"
 
 class SerialWorker(QThread):
-    """Threaded worker to handle serial data reading without blocking the UI."""
     data_received = Signal(str)
     error_occurred = Signal(str)
 
-    def __init__(self, port_name, baudrate=9600):
+    def __init__(self, port_name, config):
         super().__init__()
         self.port_name = port_name
-        self.baudrate = baudrate
+        self.config = config
         self._run_flag = True
+        self.serial_port = None
 
     def run(self):
         try:
-            # Configure the serial port (Modbus RTU defaults)
-            with serial.Serial(self.port_name, self.baudrate, timeout=0.1) as ser:
-                self.data_received.emit(f"System: Opened {self.port_name} at {self.baudrate} baud.")
-                
+            with serial.Serial(
+                port=self.port_name, baudrate=self.config['baud'],
+                bytesize=self.config['bytesize'], parity=self.config['parity'],
+                stopbits=self.config['stopbits'], timeout=0.1
+            ) as self.serial_port:
+                self.data_received.emit(f"System: Connected to {self.port_name}...")
                 while self._run_flag:
-                    if ser.in_waiting > 0:
-                        # Reading raw data for monitoring purposes
-                        raw_data = ser.read(ser.in_waiting)
-                        # Hex representation is common for Modbus debugging
-                        hex_data = raw_data.hex(' ').upper()
-                        self.data_received.emit(f"RX: {hex_data}")
-                    
-                    time.sleep(0.01) # Small sleep to prevent CPU spiking
+                    if self.serial_port.in_waiting > 0:
+                        raw_data = self.serial_port.read(self.serial_port.in_waiting)
+                        self.data_received.emit(f"RX: {raw_data.hex(' ').upper()}")
+                    time.sleep(0.01)
         except Exception as e:
             self.error_occurred.emit(str(e))
+
+    def send_hex(self, hex_str):
+        if self.serial_port and self.serial_port.is_open:
+            try:
+                clean_hex = hex_str.replace(" ", "")
+                data = bytes.fromhex(clean_hex)
+                self.serial_port.write(data)
+                self.data_received.emit(f"TX: {hex_str.upper()}")
+            except ValueError:
+                self.error_occurred.emit("Invalid Hex string!")
 
     def stop(self):
         self._run_flag = False
@@ -49,18 +58,25 @@ class ModbusMonitor(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"RS-485 Modbus Monitor - v{APP_VERSION}")
-        self.resize(850, 600)
+        self.resize(950, 700)
         
-        self.worker = None # Placeholder for our thread
+        self.worker = None
+        self.serial_config = {
+            'baud': 9600, 'bytesize': serial.EIGHTBITS,
+            'parity': serial.PARITY_NONE, 'stopbits': serial.STOPBITS_ONE
+        }
         
-        # Icon Setup
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        icon_path = os.path.join(base_path, "Resources", "ModbusMonitor.ico")
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
-            self.app_icon = QIcon(icon_path)
-        else:
-            self.app_icon = None
+        # Presets now store Name and Hex
+        self.presets = [
+            {"name": "Read Reg 0", "hex": "01 03 00 00 00 01 84 0A"},
+            {"name": "Button 2", "hex": ""},
+            {"name": "Button 3", "hex": ""},
+            {"name": "Button 4", "hex": ""}
+        ] 
+
+        icon_path = os.path.join(os.path.dirname(__file__), "Resources", "ModbusMonitor.ico")
+        self.app_icon = QIcon(icon_path) if os.path.exists(icon_path) else None
+        if self.app_icon: self.setWindowIcon(self.app_icon)
 
         self.setup_menu()
         self.setup_ui()
@@ -68,136 +84,143 @@ class ModbusMonitor(QMainWindow):
     def setup_menu(self):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("&File")
+        file_menu.addAction("Save Log", self.save_log)
+        file_menu.addAction("Exit", self.close)
+
+        self.settings_menu = menubar.addMenu("&Settings")
         
-        save_action = QAction("Save Log", self)
-        save_action.triggered.connect(self.save_log)
-        file_menu.addAction(save_action)
-        
-        exit_action = QAction("Exit", self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
+        # Serial Settings
+        baud_menu = self.settings_menu.addMenu("Baud Rate")
+        baud_group = QActionGroup(self)
+        for b in [9600, 19200, 38400, 115200]:
+            act = QAction(str(b), self, checkable=True)
+            if b == 9600: act.setChecked(True)
+            act.triggered.connect(lambda chk, v=b: self.set_config('baud', v))
+            baud_group.addAction(act); baud_menu.addAction(act)
+
+        # Modbus Presets Configuration
+        preset_menu = self.settings_menu.addMenu("Configure Buttons")
+        for i in range(4):
+            act = QAction(f"Configure Button {i+1}...", self)
+            act.triggered.connect(lambda chk, idx=i: self.configure_preset(idx))
+            preset_menu.addAction(act)
+
         help_menu = menubar.addMenu("&Help")
-        about_action = QAction("About", self)
-        about_action.triggered.connect(self.show_about)
-        help_menu.addAction(about_action)
+        help_menu.addAction("About", self.show_about)
+
+    def configure_preset(self, index):
+        # 1. Ask for Name
+        new_name, ok1 = QInputDialog.getText(self, f"Button {index+1} Name", 
+                                            "Enter display label:",
+                                            text=self.presets[index]["name"])
+        if not ok1: return
+
+        # 2. Ask for Hex
+        new_hex, ok2 = QInputDialog.getText(self, f"Button {index+1} Data", 
+                                           "Enter Modbus Hex:",
+                                           text=self.presets[index]["hex"])
+        if ok2:
+            self.presets[index]["name"] = new_name
+            self.presets[index]["hex"] = new_hex
+            # Update the button label on the UI immediately
+            self.preset_btns[index].setText(new_name)
+            self.log_display.append(f"System: Button {index+1} configured as '{new_name}'.")
+
+    def set_config(self, key, value):
+        self.serial_config[key] = value
 
     def setup_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
+        # Top Bar
         port_layout = QHBoxLayout()
         self.port_selector = QComboBox()
         self.refresh_ports()
         
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.clicked.connect(self.refresh_ports)
-        
         self.connect_btn = QPushButton("Connect")
         self.connect_btn.clicked.connect(self.toggle_connection)
-
+        
         port_layout.addWidget(QLabel("Port:"))
         port_layout.addWidget(self.port_selector, 1)
-        port_layout.addWidget(refresh_btn)
         port_layout.addWidget(self.connect_btn)
-        
+        port_layout.addWidget(QPushButton("Clear", clicked=self.clear_log))
         layout.addLayout(port_layout)
 
-        self.log_display = QTextEdit()
-        self.log_display.setReadOnly(True)
+        # Monitor
+        self.log_display = QTextEdit(readOnly=True)
         self.log_display.setStyleSheet("background-color: #1e1e1e; color: #00FF00; font-family: 'Consolas';")
         layout.addWidget(self.log_display)
+
+        # Preset Buttons Row
+        button_group = QGroupBox("Modbus Commands (TX)")
+        btn_layout = QHBoxLayout(button_group)
+        self.preset_btns = []
+        for i in range(4):
+            # Create button with the stored name
+            btn = QPushButton(self.presets[i]["name"])
+            btn.clicked.connect(lambda chk, idx=i: self.send_preset(idx))
+            btn.setEnabled(False) 
+            self.preset_btns.append(btn)
+            btn_layout.addWidget(btn)
+        layout.addWidget(button_group)
 
     def refresh_ports(self):
         self.port_selector.clear()
         model = QStandardItemModel()
-        ports = list(serial.tools.list_ports.comports())
-
-        def natural_sort_key(p):
-            return [int(t) if t.isdigit() else t.lower() for t in re.split('([0-9]+)', p.device)]
-
-        ports.sort(key=natural_sort_key)
-
+        ports = sorted(serial.tools.list_ports.comports(), 
+                       key=lambda p: [int(t) if t.isdigit() else t.lower() for t in re.split('([0-9]+)', p.device)])
         for port in ports:
-            mfr = port.manufacturer or "Unknown"
-            display_text = f"{port.device} | {mfr} | {port.description}"
-            item = QStandardItem(display_text)
-            # Store the raw device name (e.g., COM3) in the UserData role
+            item = QStandardItem(f"{port.device} | {port.description}")
             item.setData(port.device, Qt.UserRole)
-            
-            if "FTDI" in (f"{port.description} {mfr}").upper():
+            if "FTDI" in f"{port.description} {port.manufacturer}".upper():
                 item.setForeground(QColor("green"))
-            else:
-                item.setForeground(QColor("black"))
             model.appendRow(item)
-        
         self.port_selector.setModel(model)
+
+    def send_preset(self, index):
+        if self.worker and self.worker.isRunning():
+            hex_str = self.presets[index]["hex"]
+            if hex_str.strip():
+                self.worker.send_hex(hex_str)
+            else:
+                self.log_display.append(f"Error: Button '{self.presets[index]['name']}' has no hex data.")
 
     def toggle_connection(self):
         if self.worker and self.worker.isRunning():
-            self.stop_logging()
-        else:
-            self.start_logging()
-
-    def start_logging(self):
-        # Get the actual port name from the hidden data role
-        index = self.port_selector.currentIndex()
-        port_name = self.port_selector.model().item(index).data(Qt.UserRole)
-        
-        if not port_name:
-            return
-
-        self.worker = SerialWorker(port_name)
-        self.worker.data_received.connect(self.update_log)
-        self.worker.error_occurred.connect(self.handle_error)
-        self.worker.start()
-        
-        self.connect_btn.setText("Disconnect")
-        self.port_selector.setEnabled(False)
-
-    def stop_logging(self):
-        if self.worker:
             self.worker.stop()
-            self.log_display.append("System: Connection closed.")
-        
-        self.connect_btn.setText("Connect")
-        self.port_selector.setEnabled(True)
+            self.connect_btn.setText("Connect")
+            self.port_selector.setEnabled(True)
+            for b in self.preset_btns: b.setEnabled(False)
+        else:
+            idx = self.port_selector.currentIndex()
+            if idx < 0: return
+            port_name = self.port_selector.model().item(idx).data(Qt.UserRole)
+            self.worker = SerialWorker(port_name, self.serial_config)
+            self.worker.data_received.connect(self.log_display.append)
+            self.worker.error_occurred.connect(lambda e: QMessageBox.critical(self, "Error", e))
+            self.worker.start()
+            self.connect_btn.setText("Disconnect")
+            self.port_selector.setEnabled(False)
+            for b in self.preset_btns: b.setEnabled(True)
 
-    @Slot(str)
-    def update_log(self, text):
-        self.log_display.append(text)
-
-    @Slot(str)
-    def handle_error(self, err_msg):
-        QMessageBox.critical(self, "Serial Error", f"An error occurred: {err_msg}")
-        self.stop_logging()
+    def clear_log(self):
+        self.log_display.clear()
 
     def save_log(self):
         path, _ = QFileDialog.getSaveFileName(self, "Save Log", "", "Text Files (*.txt)")
         if path:
-            with open(path, 'w') as f:
-                f.write(self.log_display.toPlainText())
+            with open(path, 'w') as f: f.write(self.log_display.toPlainText())
 
     def show_about(self):
-        about_msg = QMessageBox(self)
-        about_msg.setWindowTitle("About")
-        about_msg.setText(f"RS-485 Modbus Monitor v{APP_VERSION}")
-        if self.app_icon:
-            about_msg.setWindowIcon(self.app_icon)
-            about_msg.setIconPixmap(self.app_icon.pixmap(64, 64))
-        about_msg.exec()
+        QMessageBox.about(self, "About", f"Modbus Monitor v{APP_VERSION}")
 
     def closeEvent(self, event):
-        """Clean up thread before closing app."""
-        self.stop_logging()
+        if self.worker: self.worker.stop()
         event.accept()
 
 if __name__ == "__main__":
-    if sys.platform == 'win32':
-        import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(f"modbus.monitor.{APP_VERSION}")
-
     app = QApplication(sys.argv)
     window = ModbusMonitor()
     window.show()
