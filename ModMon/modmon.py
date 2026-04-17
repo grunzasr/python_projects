@@ -2,7 +2,8 @@ import sys
 import re
 import os
 import time
-import json # Added for persistence
+import json
+from datetime import datetime
 import serial
 import serial.tools.list_ports
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -12,7 +13,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtGui import QAction, QColor, QStandardItemModel, QStandardItem, QIcon, QActionGroup, QScreen, QCursor
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QPoint
 
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.5.0"
 # Formatted as an HTML link for clickability
 GEMINI_INFO = '<a href="https://gemini.google.com/share/a92b0d141920">https://gemini.google.com/share/a92b0d141920</a>'
 
@@ -21,6 +22,7 @@ CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 ICON_PATH = os.path.join(BASE_DIR, "Resources", "ModbusMonitor.ico")
 
 class SerialWorker(QThread):
+    # Now emitting a single string that already contains the accurate timestamp
     data_received = Signal(str)
     error_occurred = Signal(str)
 
@@ -31,6 +33,10 @@ class SerialWorker(QThread):
         self._run_flag = True
         self.serial_port = None
 
+    def get_timestamp(self):
+        """Helper to get high-precision timestamp at the moment of capture."""
+        return datetime.now().strftime("[%H:%M:%S.%f]")[:-3]
+
     def run(self):
         try:
             parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
@@ -40,11 +46,19 @@ class SerialWorker(QThread):
                 parity=parity_map.get(self.config['parity'], serial.PARITY_NONE),
                 timeout=0.1
             ) as self.serial_port:
-                self.data_received.emit(f"System: Connected to {self.port_name}...")
+                
+                connect_time = self.get_timestamp()
+                self.data_received.emit(f"{connect_time} System: Connected to {self.port_name}...")
+                
                 while self._run_flag:
                     if self.serial_port.in_waiting > 0:
+                        # CAPTURE TIME IMMEDIATELY
+                        ts = self.get_timestamp()
                         raw_data = self.serial_port.read(self.serial_port.in_waiting)
-                        self.data_received.emit(f"RX: {raw_data.hex(' ').upper()}")
+                        hex_data = raw_data.hex(' ').upper()
+                        
+                        # Emit the pre-formatted line
+                        self.data_received.emit(f"{ts} RX: {hex_data}")
                     time.sleep(0.01)
         except Exception as e:
             self.error_occurred.emit(str(e))
@@ -52,10 +66,11 @@ class SerialWorker(QThread):
     def send_hex(self, hex_str):
         if self.serial_port and self.serial_port.is_open:
             try:
+                ts = self.get_timestamp()
                 clean_hex = hex_str.replace(" ", "")
                 data = bytes.fromhex(clean_hex)
                 self.serial_port.write(data)
-                self.data_received.emit(f"TX: {hex_str.upper()}")
+                self.data_received.emit(f"{ts} TX: {hex_str.upper()}")
             except ValueError:
                 self.error_occurred.emit("Invalid Hex string!")
 
