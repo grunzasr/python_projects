@@ -12,11 +12,12 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtGui import QAction, QColor, QStandardItemModel, QStandardItem, QIcon, QActionGroup
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 
-APP_VERSION = "1.9.0"
+APP_VERSION = "2.0.0"
 
-GEMINI_INFO = "https://gemini.google.com/share/a92b0d141920"
-
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+# Robust path detection for Resources and Config
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+ICON_PATH = os.path.join(BASE_DIR, "Resources", "ModbusMonitor.ico")
 
 class SerialWorker(QThread):
     data_received = Signal(str)
@@ -31,9 +32,7 @@ class SerialWorker(QThread):
 
     def run(self):
         try:
-            # Map string parities from config back to serial constants
             parity_map = {'N': serial.PARITY_NONE, 'E': serial.PARITY_EVEN, 'O': serial.PARITY_ODD}
-            
             with serial.Serial(
                 port=self.port_name, 
                 baudrate=int(self.config['baud']),
@@ -67,22 +66,23 @@ class ModbusMonitor(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"RS-485 Modbus Monitor - v{APP_VERSION}")
-        self.resize(950, 700)
+        self.resize(1000, 700)
         
         self.worker = None
-        
-        # Load saved settings or use defaults
         self.load_settings()
 
-        icon_path = os.path.join(os.path.dirname(__file__), "Resources", "ModbusMonitor.ico")
-        self.app_icon = QIcon(icon_path) if os.path.exists(icon_path) else None
-        if self.app_icon: self.setWindowIcon(self.app_icon)
+        # Icon handling with explicit path check
+        if os.path.exists(ICON_PATH):
+            self.app_icon = QIcon(ICON_PATH)
+            self.setWindowIcon(self.app_icon)
+        else:
+            self.app_icon = None
+            print(f"Warning: Icon not found at {ICON_PATH}")
 
         self.setup_menu()
         self.setup_ui()
         
     def load_settings(self):
-        """Load configuration from JSON file."""
         defaults = {
             "serial_config": {'baud': 9600, 'parity': 'N'},
             "presets": [
@@ -99,18 +99,12 @@ class ModbusMonitor(QMainWindow):
                     self.serial_config = data.get("serial_config", defaults["serial_config"])
                     self.presets = data.get("presets", defaults["presets"])
             except Exception:
-                self.serial_config = defaults["serial_config"]
-                self.presets = defaults["presets"]
+                self.serial_config = defaults["serial_config"]; self.presets = defaults["presets"]
         else:
-            self.serial_config = defaults["serial_config"]
-            self.presets = defaults["presets"]
+            self.serial_config = defaults["serial_config"]; self.presets = defaults["presets"]
 
     def save_settings(self):
-        """Save current configuration to JSON file."""
-        data = {
-            "serial_config": self.serial_config,
-            "presets": self.presets
-        }
+        data = {"serial_config": self.serial_config, "presets": self.presets}
         with open(CONFIG_FILE, 'w') as f:
             json.dump(data, f, indent=4)
 
@@ -122,7 +116,6 @@ class ModbusMonitor(QMainWindow):
 
         self.settings_menu = menubar.addMenu("&Settings")
         
-        # Baud Rate
         baud_menu = self.settings_menu.addMenu("Baud Rate")
         baud_group = QActionGroup(self)
         for b in [9600, 19200, 38400, 115200]:
@@ -166,6 +159,7 @@ class ModbusMonitor(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
+        # Top Control Bar
         port_layout = QHBoxLayout()
         self.port_selector = QComboBox()
         self.refresh_ports()
@@ -173,16 +167,23 @@ class ModbusMonitor(QMainWindow):
         self.connect_btn = QPushButton("Connect")
         self.connect_btn.clicked.connect(self.toggle_connection)
         
+        # New Separate Button
+        separate_btn = QPushButton("Separate")
+        separate_btn.clicked.connect(self.add_separator)
+        
         port_layout.addWidget(QLabel("Port:"))
         port_layout.addWidget(self.port_selector, 1)
         port_layout.addWidget(self.connect_btn)
+        port_layout.addWidget(separate_btn) # Placed to the right of connect/disconnect
         port_layout.addWidget(QPushButton("Clear", clicked=self.clear_log))
         layout.addLayout(port_layout)
 
+        # Log Window
         self.log_display = QTextEdit(readOnly=True)
         self.log_display.setStyleSheet("background-color: #1e1e1e; color: #00FF00; font-family: 'Consolas';")
         layout.addWidget(self.log_display)
 
+        # Preset Buttons Row
         button_group = QGroupBox("Modbus Commands (TX)")
         btn_layout = QHBoxLayout(button_group)
         self.preset_btns = []
@@ -193,6 +194,10 @@ class ModbusMonitor(QMainWindow):
             self.preset_btns.append(btn)
             btn_layout.addWidget(btn)
         layout.addWidget(button_group)
+
+    def add_separator(self):
+        """Adds 72 dash characters to the log window."""
+        self.log_display.append("-" * 72)
 
     def refresh_ports(self):
         self.port_selector.clear()
@@ -238,11 +243,15 @@ class ModbusMonitor(QMainWindow):
             with open(path, 'w') as f: f.write(self.log_display.toPlainText())
     def show_about(self): QMessageBox.about(self, "About", f"Modbus Monitor v{APP_VERSION}")
     def closeEvent(self, event):
-        self.save_settings() # Final save on close
+        self.save_settings()
         if self.worker: self.worker.stop()
         event.accept()
 
 if __name__ == "__main__":
+    if sys.platform == 'win32':
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(f"modbus.monitor.{APP_VERSION}")
+    
     app = QApplication(sys.argv)
     window = ModbusMonitor()
     window.show()
