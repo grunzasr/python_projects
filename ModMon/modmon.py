@@ -69,7 +69,21 @@ class SerialWorker(QThread):
                 ts = self.get_timestamp()
                 clean_hex = hex_str.replace(" ", "")
                 data = bytes.fromhex(clean_hex)
-                self.serial_port.write(data)
+                
+                # --- RTS TRANSMIT SEQUENCE ---
+                self.serial_port.rts = True      # 1. Enable Driver (Talk)
+                # Small delay for transceiver stabilization (optional but recommended)
+                time.sleep(0.002)                
+                
+                self.serial_port.write(data)     # 2. Send Data
+                self.serial_port.flush()         # 3. Wait for data to physically leave the buffer
+                
+                # 4. Return to Receiver mode (Listen)
+                # Wait for the last bit to finish based on baud rate (approx 1ms for 9600)
+                time.sleep(0.005)                
+                self.serial_port.rts = False     
+                # -----------------------------
+
                 self.data_received.emit(f"{ts} TX: {hex_str.upper()}")
             except ValueError:
                 self.error_occurred.emit("Invalid Hex string!")
