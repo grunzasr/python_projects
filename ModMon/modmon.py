@@ -14,6 +14,8 @@ from PySide6.QtCore import Qt, QThread, Signal, Slot
 
 APP_VERSION = "2.0.0"
 
+GEMINI_INFO = "https://gemini.google.com/share/a92b0d141920"
+
 # Robust path detection for Resources and Config
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
@@ -241,7 +243,16 @@ class ModbusMonitor(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Save Log", "", "Text Files (*.txt)")
         if path:
             with open(path, 'w') as f: f.write(self.log_display.toPlainText())
-    def show_about(self): QMessageBox.about(self, "About", f"Modbus Monitor v{APP_VERSION}")
+
+    def show_about(self):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("About")
+        msg.setText(f"RS-485 Modbus Monitor v{APP_VERSION}\n\nProject Info:\n{GEMINI_INFO}")
+        if self.app_icon:
+            msg.setWindowIcon(self.app_icon)
+            msg.setIconPixmap(self.app_icon.pixmap(64, 64))
+        msg.exec()
+
     def closeEvent(self, event):
         self.save_settings()
         if self.worker: self.worker.stop()
