@@ -13,6 +13,9 @@ from PySide6.QtGui import QAction, QColor, QStandardItemModel, QStandardItem, QI
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 
 APP_VERSION = "1.9.0"
+
+GEMINI_INFO = "https://gemini.google.com/share/a92b0d141920"
+
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
 class SerialWorker(QThread):
