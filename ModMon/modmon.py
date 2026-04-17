@@ -9,8 +9,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QComboBox, QPushButton, QTextEdit, 
                              QFileDialog, QMessageBox, QLabel, QMenu, QInputDialog,
                              QGroupBox)
-from PySide6.QtGui import QAction, QColor, QStandardItemModel, QStandardItem, QIcon, QActionGroup
-from PySide6.QtCore import Qt, QThread, Signal, Slot
+from PySide6.QtGui import QAction, QColor, QStandardItemModel, QStandardItem, QIcon, QActionGroup, QScreen, QCursor
+from PySide6.QtCore import Qt, QThread, Signal, Slot, QPoint
 
 APP_VERSION = "2.2.0"
 # Formatted as an HTML link for clickability
@@ -67,7 +67,9 @@ class ModbusMonitor(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"RS-485 Modbus Monitor - v{APP_VERSION}")
-        self.resize(1000, 700)
+        
+        # --- Handle Dynamic Sizing (80% of current monitor) ---
+        self.apply_initial_geometry()
         
         self.worker = None
         self.load_settings()
@@ -82,6 +84,30 @@ class ModbusMonitor(QMainWindow):
 
         self.setup_menu()
         self.setup_ui()
+        
+    def apply_initial_geometry(self):
+        """Calculates 80% of the screen size where the app is launched."""
+        # Get the screen where the mouse cursor is currently located
+        # Get the current mouse pointer position
+        cursor_pos = QCursor.pos()
+        
+        # Find the screen containing that position
+        screen = QApplication.screenAt(cursor_pos)
+        
+        if not screen:
+            screen = QApplication.primaryScreen()
+            
+        screen_geometry = screen.availableGeometry()
+        
+        # Calculate 80% of width and height
+        width = int(screen_geometry.width() * 0.8)
+        height = int(screen_geometry.height() * 0.8)
+        
+        # Center the window on that screen
+        x = screen_geometry.x() + (screen_geometry.width() - width) // 2
+        y = screen_geometry.y() + (screen_geometry.height() - height) // 2
+        
+        self.setGeometry(x, y, width, height)
         
     def load_settings(self):
         defaults = {
