@@ -12,11 +12,10 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtGui import QAction, QColor, QStandardItemModel, QStandardItem, QIcon, QActionGroup
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.2.0"
+# Formatted as an HTML link for clickability
+GEMINI_INFO = '<a href="https://gemini.google.com/share/a92b0d141920">https://gemini.google.com/share/a92b0d141920</a>'
 
-GEMINI_INFO = "https://gemini.google.com/share/a92b0d141920"
-
-# Robust path detection for Resources and Config
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 ICON_PATH = os.path.join(BASE_DIR, "Resources", "ModbusMonitor.ico")
@@ -245,12 +244,22 @@ class ModbusMonitor(QMainWindow):
             with open(path, 'w') as f: f.write(self.log_display.toPlainText())
 
     def show_about(self):
+        # Using a custom message box to allow for a clickable link
         msg = QMessageBox(self)
         msg.setWindowTitle("About")
-        msg.setText(f"RS-485 Modbus Monitor v{APP_VERSION}\n\nProject Info:\n{GEMINI_INFO}")
+        msg.setIcon(QMessageBox.Information)
+        
+        # Set text as RichText to enable HTML link interpretation
+        msg.setTextFormat(Qt.RichText)
+        msg.setText(f"<b>RS-485 Modbus Monitor</b><br>Version {APP_VERSION}<br><br>{GEMINI_INFO}")
+        
+        # This is the secret sauce for clickable links in QMessageBox
+        msg.button(QMessageBox.Ok) 
+        
         if self.app_icon:
             msg.setWindowIcon(self.app_icon)
             msg.setIconPixmap(self.app_icon.pixmap(64, 64))
+            
         msg.exec()
 
     def closeEvent(self, event):
